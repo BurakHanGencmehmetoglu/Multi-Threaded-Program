@@ -211,7 +211,6 @@ void receiver_thread(void* arguments) {
         sem_post(&(lock_current_number_of_hubs));
         for (int i=0;i<hub_array[assigned_hub_id-1].init_incoming_space_length;i++) {
             sem_wait(&(hub_array[assigned_hub_id-1].hub_incoming_space[i].lock_incoming_space_info));
-            // Incoming alanı doluysa ve drone da gelmişse (yolda değilse yani) paketi alıp alanı boşaltıyoruz.
             if (!(hub_array[assigned_hub_id-1].hub_incoming_space[i].is_empty) && hub_array[assigned_hub_id-1].hub_incoming_space[i].is_drone_arrived) {
                 hub_array[assigned_hub_id-1].hub_incoming_space[i].is_empty = true;  
                 hub_array[assigned_hub_id-1].hub_incoming_space[i].is_drone_arrived = false;
@@ -356,7 +355,7 @@ void drone_thread(void* arguments) {
             }
             // Take package from outgoing storage. Release outgoing storage. Release charging space from current hub.
             
-            // Hub bu bilgiyi eklemişti. Paketi götürmeye başlayınca bu indexi boşalt diye. Bu index bilgisini aldık.
+            
             sem_wait(&(drone_array[drone_id-1].lock_drone_info));
             int release_outgoing_storage_index = drone_array[drone_id-1].release_outgoing_space_index;
             sem_post(&(drone_array[drone_id-1].lock_drone_info));
@@ -366,7 +365,7 @@ void drone_thread(void* arguments) {
             WriteOutput(NULL,NULL,&drone_info,NULL,DRONE_PICKUP);
 
 
-            // Outgoing storage boşalttık current hubda. Sender boşalan yere yeni paketleri koyabilir. 
+            
             sem_wait(&(hub_array[current_hub_id-1].hub_outgoing_space[release_outgoing_storage_index].lock_outgoing_space_info));
             hub_array[current_hub_id-1].hub_outgoing_space[release_outgoing_storage_index].is_empty = true;
             hub_array[current_hub_id-1].hub_outgoing_space[release_outgoing_storage_index].is_drone_take_this_space = false;
@@ -375,7 +374,7 @@ void drone_thread(void* arguments) {
             
             
 
-            // Charging space boşaltıyoruz current hubda. Charging space içinde gezip drone idlerine bakıyoruz. Bizimkiyle aynı olunca boşaltıyoruz.     
+            
             for (int i=0;i<hub_array[current_hub_id-1].init_charging_space_length;i++) {
                 sem_wait(&(hub_array[current_hub_id-1].hub_charging_space[i].lock_charging_space_info));
                 if (hub_array[current_hub_id-1].hub_charging_space[i].drone_id == drone_id) {
@@ -397,13 +396,13 @@ void drone_thread(void* arguments) {
             FillDroneInfo(&drone_info,drone_id,current_hub_id,current_range,&package_info,0);
             WriteOutput(NULL,NULL,&drone_info,NULL,DRONE_DEPOSITED);
 
-            // Incoming spaceden yer ayırmıştık. Geldiğimizi haber veriyoruz drone arrived true yaparak.
+            
             sem_wait(&(hub_array[destination_hub_id-1].hub_incoming_space[incoming_space_index].lock_incoming_space_info));
             hub_array[destination_hub_id-1].hub_incoming_space[incoming_space_index].is_drone_arrived = true;
             sem_post(&(hub_array[destination_hub_id-1].hub_incoming_space[incoming_space_index].lock_incoming_space_info));
             //            
             
-            // Global drone arraydeki drone bilgilerini güncelliyoruz. Hub görebilsin diye.    
+                
             sem_wait(&(drone_array[drone_id-1].lock_drone_info));
             drone_array[drone_id-1].current_range = current_range;
             drone_array[drone_id-1].is_active = false;
@@ -464,8 +463,6 @@ void drone_thread(void* arguments) {
             WriteOutput(NULL,NULL,&drone_info,NULL,DRONE_ARRIVED);
 
             // Signal to waiting hub. Drone arrived. Do not change is active to false.
-            // Active false yapsak başkası kapabilir. O yüzden active true hala. 
-            // Bizi bekleyen hub direkt biz gelince paketimizi verecek. Öyle yazdık hubı.
             sem_wait(&(drone_array[drone_id-1].lock_drone_info));
             drone_array[drone_id-1].current_range = current_range;
             drone_array[drone_id-1].drone_come_to_nearby_hub = true;    
@@ -479,7 +476,7 @@ void drone_thread(void* arguments) {
 
 
 
-    // Ne olur ne olmaz aktifi true yapıp çıkalım. Bize karışmazlar aktif true iken.
+
     sem_wait(&(drone_array[drone_id-1].lock_drone_info));
     drone_array[drone_id-1].is_active = true;
     FillDroneInfo(&drone_info,drone_id,current_hub_id,current_range,NULL,0);
@@ -531,47 +528,46 @@ void hub_thread(void* id) {
         if (there_are_senders || there_are_outgoing_storage) {
             int outgoing_storage_usage = 0;
             for (int i=0;i<hub_array[hub_id-1].init_outgoing_space_length;i++) {                                 
-                sem_wait(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info)); //Outgoing Space Lockla boş olup olmadığına bakıcaz.               // İlk for loopta outgoing space bir şey gelmiş mi ona bakıyoruz.                                      
-                if (!(hub_array[hub_id-1].hub_outgoing_space[i].is_empty) && !(hub_array[hub_id-1].hub_outgoing_space[i].is_drone_take_this_space)) {               // İkinci for loopta charging space dolu mu ona bakıyoruz. 
+                sem_wait(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info));                                     
+                if (!(hub_array[hub_id-1].hub_outgoing_space[i].is_empty) && !(hub_array[hub_id-1].hub_outgoing_space[i].is_drone_take_this_space)) {              
                     outgoing_storage_usage ++;
-                    sem_post(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info)); // Outgoing space unlock. Dolu çıktı, drone boşaltacak.        // Üçüncü olarak ta drone aktif mi ona bakıyoruz.                     
+                    sem_post(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info));                    
                     int highest_range = -10000;
-                    int drone_index_for_package = -1;                                                                                                           // Bulduğumuz en yüksek range' li drone' a outgoing space' deki paketi veriyoruz.                                 
+                    int drone_index_for_package = -1;                                                                                                                                            
                         start:
                             highest_range = -10000;
                             drone_index_for_package = -1;
                             for (int j=0;j<hub_array[hub_id-1].init_charging_space_length;j++) {
-                                sem_wait(&(hub_array[hub_id-1].hub_charging_space[j].lock_charging_space_info)); // Charging Space Lockla boş olup olmadığına bakıcaz.
+                                sem_wait(&(hub_array[hub_id-1].hub_charging_space[j].lock_charging_space_info)); 
                                 if (!(hub_array[hub_id-1].hub_charging_space[j].is_empty)) {  
-                                    sem_wait(&(drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info)); // Drone lock, charging space dolu. Drone aktif mi ona bakıyoruz.  
+                                    sem_wait(&(drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info));  
                                     if (!(drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].is_active)) {
                                         if (drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].current_range > highest_range) {
                                             highest_range = drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].current_range;
                                             if (drone_index_for_package != -1) {
-                                                sem_post(&(drone_array[drone_index_for_package].lock_drone_info)); // Unlock previous. -1 check yapıyoruz. İlk drone özel durum var çünkü.
+                                                sem_post(&(drone_array[drone_index_for_package].lock_drone_info)); 
                                             }
-                                            drone_index_for_package = hub_array[hub_id-1].hub_charging_space[j].drone_id-1;     // Yeni drone indexini gir. Öncekini unlockla.
+                                            drone_index_for_package = hub_array[hub_id-1].hub_charging_space[j].drone_id-1;     
                                         }  
                                         else {
-                                            sem_post(&(drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info)); // Range highesttan düşük. Direkt unlock drone. 
+                                            sem_post(&(drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info));  
                                         }
                                     }   
                                     else {
-                                        sem_post(&(drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info)); // Drone unlock. Aktif zaten, şimdi kullanamayız.
+                                        sem_post(&(drone_array[hub_array[hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info)); 
                                     }
                                 }           
-                                sem_post(&(hub_array[hub_id-1].hub_charging_space[j].lock_charging_space_info)); // Charging space unlock. Boş olup olmadığına baktık.                                                                   
+                                sem_post(&(hub_array[hub_id-1].hub_charging_space[j].lock_charging_space_info));                                                                   
                             }
 
                             // We have found 'not active drone' in our charging space and we have package. Let's assign package to drone.
                             if (drone_index_for_package != -1) {
-                                // Bu paketi bir drone ' a verdik dememiz lazım. Birden fazla drone'u aynı pakete vermemek için.
+                                
                                 sem_wait(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info));
                                 hub_array[hub_id-1].hub_outgoing_space[i].is_drone_take_this_space = true;
                                 sem_post(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info));
 
-                                // Loopta wait yapmıştık zaten bu drone'a . Kontrolü bizde hala yani.
-                                // O yüzden şimdi direkt bilgilerini doldurup post yapıcaz.
+                               
                                 drone_array[drone_index_for_package].is_active = true;
                                 drone_array[drone_index_for_package].transport_package = true;
                                 drone_array[drone_index_for_package].nearby_hub_request = false;
@@ -599,31 +595,28 @@ void hub_thread(void* id) {
                                             int highest_range = -10000;
                                             int drone_index_for_package = -1;
                                             for (int j=0;j<hub_array[nearby_hub_id-1].init_charging_space_length;j++) {
-                                                sem_wait(&(hub_array[nearby_hub_id-1].hub_charging_space[j].lock_charging_space_info)); // Charging Space Lockla boş olup olmadığına bakıcaz. 
+                                                sem_wait(&(hub_array[nearby_hub_id-1].hub_charging_space[j].lock_charging_space_info)); 
                                                 if (!(hub_array[nearby_hub_id-1].hub_charging_space[j].is_empty)) {    
-                                                    sem_wait(&(drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info)); // Drone lock, charging space dolu. Drone aktif mi ona bakıyoruz.  
+                                                    sem_wait(&(drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info));   
                                                     if (!(drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].is_active)) {
                                                         if (drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].current_range > highest_range) {
                                                             highest_range = drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].current_range;
                                                             if (drone_index_for_package != -1) {
-                                                                sem_post(&(drone_array[drone_index_for_package].lock_drone_info)); // Unlock previous. -1 check yapıyoruz. İlk drone özel durum var çünkü.
+                                                                sem_post(&(drone_array[drone_index_for_package].lock_drone_info)); 
                                                             }
-                                                            drone_index_for_package = hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1;     // Yeni range ve index gir. Öncekini unlockla.
+                                                            drone_index_for_package = hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1;   
                                                         }  
                                                         else {
-                                                            sem_post(&(drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info)); // Range highesttan düşük. Direkt unlock drone. 
+                                                            sem_post(&(drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info));  
                                                         }
                                                     }   
                                                     else {
-                                                        sem_post(&(drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info)); // Drone unlock. Aktif zaten, şimdi kullanamayız.
+                                                        sem_post(&(drone_array[hub_array[nearby_hub_id-1].hub_charging_space[j].drone_id-1].lock_drone_info)); 
                                                     }
                                                 }           
-                                                sem_post(&(hub_array[nearby_hub_id-1].hub_charging_space[j].lock_charging_space_info)); // Charging space unlock. Boş olup olmadığına baktık.                        
+                                                sem_post(&(hub_array[nearby_hub_id-1].hub_charging_space[j].lock_charging_space_info));                        
                                             }
                                             if (drone_index_for_package != -1) {
-                                                // We have found 'not active drone' in nearby charging space and. Let's call to drone.
-                                                // For loopta wait yapmıştık. O yüzden direkt çağırıp postluyoruz.
-                                                // Çağırdığımızı bekliyoruz looptan çıkıp.
                                                 drone_array[drone_index_for_package].is_active = true;
                                                 drone_array[drone_index_for_package].transport_package = false;
                                                 drone_array[drone_index_for_package].nearby_hub_request = true;
@@ -643,7 +636,7 @@ void hub_thread(void* id) {
                                 free(min_indexes);
                                 if (flag_for_finding_drone) {
                                     while (true) {
-                                        // Found drone index üzerinden sürekli bakıyoruz gelmiş mi diye. Gelince paketi yükleyip gönderecez.
+                                        
                                         sem_wait(&(drone_array[found_drone_index].lock_drone_info));
                                         if (drone_array[found_drone_index].drone_come_to_nearby_hub) {
                                             sem_wait(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info));
@@ -665,13 +658,13 @@ void hub_thread(void* id) {
                                     }
                                 }
                                 else {    
-                                    wait(waiting_time);    // We did not find drone. Wait specific time and try again
+                                    wait(waiting_time);   
                                     goto start;
                                 }
                             }
                 }
                 else {
-                    sem_post(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info)); // Outgoing space unlock. Boş çıktı, devam.
+                    sem_post(&(hub_array[hub_id-1].hub_outgoing_space[i].lock_outgoing_space_info)); 
                 }
             }
             if (!there_are_senders && outgoing_storage_usage == 0) {
@@ -690,13 +683,13 @@ void hub_thread(void* id) {
 
 
 
-    // Hubı kapatıyoruz.
+    
     sem_wait(&(hub_array[hub_id-1].lock_hub_info));
     hub_array[hub_id-1].is_active = false;
     sem_post(&(hub_array[hub_id-1].lock_hub_info));
     //
     
-    // Hub sayısını bir azaltıyoruz.
+    
     sem_wait(&(lock_current_number_of_hubs));
     current_number_of_hubs = current_number_of_hubs - 1; 
     FillHubInfo(&hub_info,hub_id);

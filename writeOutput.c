@@ -187,4 +187,3 @@ void WriteOutput(SenderInfo* senderInfo, ReceiverInfo* receiverInfo, DroneInfo* 
     }
     pthread_mutex_unlock(&mutexWrite);
 }
-
