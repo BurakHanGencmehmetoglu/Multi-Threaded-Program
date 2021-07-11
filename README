@@ -1,0 +1,100 @@
+Synchronization of multiple threads with semaphores.
+
+We want to simulate the transportation of packages between senders and receivers using
+drone hubs and drones. Specifically, senders will deposit their packages to
+drone hubs, drones will transport the package to the destination hubs and receivers will pick
+up their packages from the destination hubs. Drone hubs have limited capacity for incoming
+1and outgoing packages. Outgoing packages are stored at the outgoing storage and incoming
+packages are stored at the incoming storage in the hub. Drones have limited range and need to
+charge at hubs to fill up after transporting a package. Similar to limited package space, drone
+hubs have limited charging (parking) space for drones. Drones needs to park in one of these
+spaces in order to drop and load packages. In a busy scenario, drone brings a package to a hub,
+parks in one of the spaces, drop package to incoming storage of the hub, load another package
+from outgoing storage of the hub, and as long as it is in the parking space, it is charged.
+The processing is handled by four types of agents whose functions are described as below:
+
+
+• Senders simulate people sending packages. They each access to a different hub and
+send packages to receivers. Each package is addressed to a specific hub and a receiver.
+Senders need to wait when the outgoing storage gets full before sending a packet. There
+exists a maximum number of packages a sender can deposit. Upon reaching that number,
+it quits.
+
+• Receivers simulate people picking up the packages that they have been sent to. Each
+receiver is assigned to a different hub. They will pick up their packages from the incoming
+storage of the hub. They will continue until the hub they have been assigned to, stop
+its operation.
+
+• Drones transport packages from one hub to another. Each drone will reserve package
+and charging space before departing to the destination. They may need to wait before
+departing from the hub until they have enough energy for the trip or a space is available
+at the destination. They can also be called from nearby hubs and will travel to them
+to without a package if and when that happens. This time they only reserve charging
+space before departing. They will continue working until all of the hubs have stopped
+operating.
+
+• Hubs are at the center of this transportation simulation. They hold all
+of the incoming and outgoing packages, charge the drones and even call drones when
+necessary. Each hub has a dedicated sender and a receiver.
+
+Upon receiving a package from its sender, the hub instructs the drone with the highest
+current range to deliver the package to the destination. If there are no drones available,
+it will call drones from nearby hubs in distance order until one is found. If there are no
+available drones, the hubs will wait either a specific duration or the arrival of a drone.
+If no drones arrive, it will call the nearby hubs again until a drone is found or a drone
+arrives. Hubs can store fixed number of packages for incoming and outgoing transfers.
+Hubs operate until all of the senders stop sending packages and they have no package
+left in their incoming and outgoing storage. They do not have to wait for the drones to
+finish charging.
+
+
+
+Input Specifications
+
+Information related to simulation agents will be given through standard input.
+First line contains the number of hubs N in the simulation. Following N lines contain
+the properties of the hubs with ith ID in the following format:
+- I_H O_H C_H D_1 D_2 ... D_N
+• I_H is an integer representing the size of the incoming package storage.
+• O_H is an integer representing the size of the outgoing package storage.
+• C_H is an integer representing the number of the charging spaces for drones.
+• The values D_1 to D_N represents the distances between current hub to the other hubs.
+
+
+Following N_T lines contain the properties of the sender with ith ID in the following format:
+- S_S H_S T_S where
+• S_S is an integer representing the time sender waits between two packets.
+• H_S is an integer representing the assigned hub id of the sender.
+• T_S is an integer representing the total number packages that this sender will send.
+
+Following N_T lines contain the properties of the receivers with ith ID in the following format:
+- S_R H_R
+• S_R is an integer representing the time receiver waits between two packets.
+• H_R is an integer representing the assigned hub id of the receiver.
+
+Next line contains the number of drones (N D ) in the simulation. Following N D lines contain
+the properties of the drones with i th ID in the following format:
+- S_D H_D R_D
+• S_D is an integer representing travel speed of the drone.
+• H_D is an integer representing the starting hub id of the drone.
+• R_D is an integer representing the maximum range of the drone.
+
+
+Example Input :
+3
+10 10 3 0 4 8
+5 5 2 4 0 2
+10 5 2 8 2 0
+1 1 10
+2 2 5
+1 3 15
+2 2
+1 3
+4 1
+2
+2 1 5
+4 3 3 
+
+input.txt can be run with following commands :
+> make all
+> ./simulator < input.txt
